@@ -30,6 +30,10 @@ public:
 	Window& operator=(const Window&) = delete;
 
 	void SetTitle(const std::string ttitle);
+
+	int GetWidth(){return width;}
+	int GetHeight(){return height};
+	HWND GetHandlw(){return hWnd;}
 private:
 	static LRESULT CALLBACK HandleMsgSetup(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept;
 	static LRESULT CALLBACK HandleMsgTrunk(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept;
