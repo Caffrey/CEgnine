@@ -12,7 +12,7 @@ public:
     static void ReleaseEngine();
 
 
-    HRESULT IntializeDX12();
+    void IntializeDX12();
     
 //Static Use , Not Public
    

@@ -32,7 +32,7 @@ public:
 	void SetTitle(const std::string ttitle);
 
 	int GetWidth(){return width;}
-	int GetHeight(){return height};
+	int GetHeight(){return height;}
 	HWND GetHandlw(){return hWnd;}
 private:
 	static LRESULT CALLBACK HandleMsgSetup(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept;

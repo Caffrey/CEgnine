@@ -1,1 +1,164 @@
 #include "DX12PipelineState.h"
+#include "DX12RenderEngine.h"
+#include "DX12Shader.h"
+#include "DX12RootSignature.h"
+#include "DX12Utils.h"
+
+bool DX12PipelineState::IsValid(EElementFlags i_Flag)
+{
+    return (i_Flag != eNone);
+}
+
+UINT DX12PipelineState::GetElementSize(D3D12_INPUT_LAYOUT_DESC i_InputLayout)
+{
+    // size of one element
+    UINT elementSize = 0;
+
+    // go into the structure and get the size of the buffer
+    for (UINT i = 0; i < i_InputLayout.NumElements; ++i)
+    {
+        D3D12_INPUT_ELEMENT_DESC element = i_InputLayout.pInputElementDescs[i];
+
+        if ((element.AlignedByteOffset != D3D12_APPEND_ALIGNED_ELEMENT) && (element.AlignedByteOffset != elementSize))
+        {
+            elementSize = element.AlignedByteOffset;
+        }
+
+        // update the size of the current buffer
+        elementSize += DX12Utils::SizeOfFormatElement(element.Format);
+    }
+
+    return elementSize;
+}
+
+UINT64 DX12PipelineState::CreateFlagsFromInputLayout(D3D12_INPUT_LAYOUT_DESC i_InputLayout)
+{
+    UINT64 flags = EElementFlags::eNone;
+    // go into the structure and get the size of the buffer
+    for (UINT i = 0; i < i_InputLayout.NumElements; ++i)
+    {
+        D3D12_INPUT_ELEMENT_DESC element = i_InputLayout.pInputElementDescs[i];
+
+        if (strcmp(element.SemanticName, "TEXCOORD") == 0)	flags |= EElementFlags::eHaveTexcoord;
+        else if (strcmp(element.SemanticName, "NORMAL") == 0)	flags |= EElementFlags::eHaveNormal;
+    }
+
+    return flags;
+}
+
+void DX12PipelineState::CreateInputLayoutFromFlags(D3D12_INPUT_LAYOUT_DESC& o_InputLayout, UINT64 i_Flags)
+{
+    // compute size of elements
+    D3D12_INPUT_ELEMENT_DESC * elements;
+    UINT size = 1;
+    UINT index = 0;
+    UINT offset = 0;
+
+    if (i_Flags & EElementFlags::eHaveTexcoord)			++size;
+    if (i_Flags & EElementFlags::eHaveNormal)			++size;
+
+    elements = new D3D12_INPUT_ELEMENT_DESC[size];
+    o_InputLayout.NumElements = size;
+    o_InputLayout.pInputElementDescs = elements;
+
+    elements[index++] = {"POSITION",0,DXGI_FORMAT_R32G32B32_FLOAT,0,offset,D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,0};
+    offset += 3 * sizeof(float);
+    
+    if (i_Flags & EElementFlags::eHaveNormal)
+    {
+        elements[index++] = { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, offset, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
+        offset += 3 * sizeof(float);
+    }
+    if (i_Flags & EElementFlags::eHaveTexcoord)
+    {
+        elements[index++] = { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, offset, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 };
+        offset += 2 * sizeof(float);
+    }
+
+    
+}
+
+DX12PipelineState::DX12PipelineState(const PipelineStateDesc& i_Desc)
+:m_RootSignature(i_Desc.RootSignature)
+,m_PixelShader(i_Desc.PixelShader)
+,m_VertexShader(i_Desc.VertexShader)
+,m_IsCreated(false)
+,m_PipelineState(nullptr)
+,m_RenderTargetCount(i_Desc.RenderTargetCount)
+{
+    ID3D12Device* Device =  DX12RenderEngine::GetInstance().GetDevice();
+
+    assert(m_PixelShader->GetType() == DX12Shader::ePixel);
+    assert(m_VertexShader->GetType() == DX12Shader::eVertex);
+    assert(i_Desc.RenderTargetCount < 8);
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
+    desc.InputLayout = m_InputLayout;
+    desc.pRootSignature = m_RootSignature->GetRootSignature();
+    desc.VS = m_VertexShader->GetByteCode();
+    desc.PS = m_PixelShader->GetByteCode();
+    desc.PrimitiveTopologyType = i_Desc.PrimitiveTopologyType;
+
+    DXGI_SAMPLE_DESC sampleDesc = {};
+    sampleDesc.Count = 1; 
+    desc.SampleDesc = sampleDesc;
+    desc.SampleMask = 0xffffffff;
+    desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    desc.BlendState = i_Desc.BlendState;
+    desc.NumRenderTargets = i_Desc.RenderTargetCount;
+    if(i_Desc.DepthEnabled)
+    {
+        desc.DSVFormat = i_Desc.DepthStencilFormat;
+        desc.DepthStencilState = i_Desc.DepthStencilDesc;
+    }
+
+    for (UINT i = 0; i < i_Desc.RenderTargetCount; ++i)
+    {
+        desc.RTVFormats[i] = i_Desc.RenderTargetFormat[i]; // format of the render target
+    }
+
+    ThrowIfFailed(Device->CreateGraphicsPipelineState(&desc,IID_PPV_ARGS(&m_PipelineState)));
+   
+}
+
+DX12PipelineState::~DX12PipelineState()
+{
+    // clean DX12 resources
+    SAFE_RELEASE(m_PipelineState);
+
+    // clear allocated resources
+    delete [] m_InputLayout.pInputElementDescs;
+}
+
+const D3D12_INPUT_LAYOUT_DESC& DX12PipelineState::GetLayoutDesc() const
+{
+    return m_InputLayout;
+}
+
+UINT DX12PipelineState::GetRenderTargetCount() const
+{
+    return m_RenderTargetCount;
+}
+
+ID3D12PipelineState* DX12PipelineState::GetPipelineState() const
+{
+    return m_PipelineState;
+}
+
+const DX12RootSignature* DX12PipelineState::GetDX12RootSignature() const
+{
+    return m_RootSignature;
+}
+
+void DX12PipelineState::CopyInputLayout(D3D12_INPUT_LAYOUT_DESC& o_Buffer, const D3D12_INPUT_LAYOUT_DESC& i_InputLayout)
+{
+    D3D12_INPUT_ELEMENT_DESC *pElement = new D3D12_INPUT_ELEMENT_DESC[i_InputLayout.NumElements];
+    for (UINT i = 0; i < i_InputLayout.NumElements; ++i)
+    {
+        pElement[i] = i_InputLayout.pInputElementDescs[i];
+    }
+
+    // setup the buffer input layout
+    o_Buffer.pInputElementDescs = pElement;
+    o_Buffer.NumElements = i_InputLayout.NumElements;
+}

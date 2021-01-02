@@ -1,4 +1,5 @@
 #include "DX12Utils.h"
+#include <d3dcompiler.h>
 
 DX12DescriptorHeap* DX12Utils::CreateRVTHeap(std::wstring& Name, int FrameCount)
 {
@@ -42,4 +43,13 @@ DX12DescriptorHeap* DX12Utils::CreateDepthStencilHeap(std::wstring& Name, int He
 
     DX12DescriptorHeap *Heap = new  DX12DescriptorHeap(desc,Name.c_str());
     return Heap;
+}
+
+
+DX12Shader* DX12Utils::LoadShaderFromBlob(DX12Shader::EShaderType i_Type, const wchar_t* i_Filename)
+{
+    ID3D10Blob* blog;
+    ThrowIfFailed(D3DReadFileToBlob(i_Filename,&blog));
+
+    return new DX12Shader(i_Type,blog);
 }

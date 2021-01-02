@@ -1,13 +1,18 @@
 #include "DX12RenderEngine.h"
 
 
-DX12RenderEngine* s_Instnace = nullptr;
+DX12RenderEngine* DX12RenderEngine::s_Instnace = nullptr;
 
 
 DX12RenderEngine& DX12RenderEngine::GetInstance()
 {
     if(s_Instnace != nullptr)
         return *s_Instnace;
+    else
+    {
+        CreateEngine();
+        return *s_Instnace;
+    }
 }
 
 void DX12RenderEngine::CreateEngine()
@@ -24,11 +29,13 @@ void DX12RenderEngine::ReleaseEngine()
     s_Instnace = nullptr;
 }
 
-HRESULT DX12RenderEngine::IntializeDX12()
+void DX12RenderEngine::IntializeDX12()
 {
     CreateDevice();
     CreateComamdQueue();
     CreateSwapChain();
+
+    
 }
 
 void DX12RenderEngine::CreateDevice()
